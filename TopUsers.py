@@ -17,6 +17,7 @@ args = parser.parse_args()
 ipr = bash('ip route')
 routerRE = re.search('default via ((\d{2,3}\.\d{1,3}\.\d{1,4}\.)\d{1,3}) \w+ (\w[a-zA-Z0-9]\w[a-zA-Z0-9][0-9]?)', ipr)
 interface = routerRE.group(3)
+localMAC = get_if_hwaddr(interface)
 IPandMAC = []
 
 promisc = bash('airmon-ng start %s' % interface)
@@ -58,7 +59,7 @@ def main(pkt):
 	if pkt.haslayer(Dot11):
 		pkt = pkt[Dot11]
 #		type 2 is Data, type 0 is Management
-		if pkt.type == 2 and pkt.addr1 != '68:94:23:79:08:df' and pkt.addr2 != '68:94:23:79:08:df':
+		if pkt.type == 2 and pkt.addr1 != localMAC and pkt.addr2 != localMAC:
 			hw = pkt[Dot11].addr1
 			for idx,x in enumerate(IPandMAC):
 				if hw in x:
