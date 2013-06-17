@@ -9,6 +9,7 @@ import sys
 import signal
 import commands
 import threading
+from Tkinter import *
 bash=commands.getoutput
 
 parser = argparse.ArgumentParser()
@@ -29,10 +30,17 @@ timer2 = 0
 wired = 0
 changed = []
 
-promisc = bash('airmon-ng start %s' % interface)
-monmode = re.search('monitor mode enabled on (.+)\)', promisc)
-monmode = monmode.group(1)
-print '\n[+] Enabled monitor mode'
+choice = raw_input('Wired or wirelessly connected? [1/2]: ')
+if choice == '1':
+	wired = 1
+
+if wired == 1:
+	pass
+else:
+	promisc = bash('airmon-ng start %s' % interface)
+	monmode = re.search('monitor mode enabled on (.+)\)', promisc)
+	monmode = monmode.group(1)
+	print '\n[+] Enabled monitor mode'
 
 ans,unans = arping(IPprefix+'*', timeout=5)
 for s,r in ans:
@@ -51,12 +59,60 @@ if t == 0:
 	monOff = bash('airmon-ng stop %s' % monmode)
 	sys.exit('Router MAC not found')
 
+#Create Tkinter GUI
+class popup:
+
+	def __init__(self, master):
+
+			frame = Frame(master)
+			frame.pack()
+
+			self.button1 = Button(frame, text="1", command=self.func1)
+			self.button1.pack(side=LEFT)
+
+			self.button2 = Button(frame, text="2", command=self.func2)
+			self.button2.pack(side=LEFT)
+
+			self.button3 = Button(frame, text="3", fg='red', command=self.func3)
+			self.button3.pack(side=LEFT)
+
+	def func1(self):
+
+		if wired == 1:
+			sniff(iface=interface, prn=main, store=0)
+		else:
+			try:
+				sniff(iface=monmode, prn=main, store=0)
+			except socket.error:
+				print 'Could not reach network'
+			except Exception:
+				raise
+
+		text = Text(root)
+		text.pack()
+		text.insert(END, printer(n))
+
+	def func2(self):
+
+		print 'func2'
+		text = Text(root)
+		text.pack()
+		text.insert(END, yourobjecthere)
+
+	def func3(self):
+
+		print 'func3'
+		text = Text(root)
+		text.pack()
+		text.insert(END, yourobjecthere)
+
+
 def newclients(pkt):
 	global IPandMAC
 	newIP = ''
 	newMAC = ''
 #	hostname = ''
-	if pkt.haslayer(DHCP):
+	if pkt.haslayer(DHCP) and pkt.haslayer(Ether):
 		#Check for message-type == 3 which is the second request the client makes
 		if pkt[DHCP].options[0][1] == 3:
 			opt = pkt[DHCP].options
@@ -73,6 +129,10 @@ def newclients(pkt):
 								return
 					IPandMAC.append([0, newMAC, newIP])
 
+#				print newIP, newMAC
+#				if newIP != '' and newMAC != '' and not host:
+#					print '[+]',newIP, newMAC,'joined the network'
+
 class newDevices(threading.Thread):
 	def run(self):
 		sniff(store=0, filter='port 67 or 68', prn=newclients, iface=interface)
@@ -81,21 +141,20 @@ def printer(n):
 	global changed
 	print ''
 	for x in range(n):
-		try:
-			IP = IPandMAC[x][2]
-		except:
-			changed = []
-			break
-		if IP in changed:
-			if IP == routerIP:
-				print '[+]',IPandMAC[x][0], IPandMAC[x][1], IP,'(router)'
-			else:
-				print '[+]',IPandMAC[x][0], IPandMAC[x][1], IP
-		else:
+		if IPandMAC[x][0] in changed:
 			if IPandMAC[x][2] == routerIP:
-				print '[-]',IPandMAC[x][0], IPandMAC[x][1], IP,'(router)'
+				print '[+]',IPandMAC[x][0], IPandMAC[x][1], IPandMAC[x][2],'(router)'
 			else:
-				print '[-]',IPandMAC[x][0], IPandMAC[x][1], IP
+				print '[+]',IPandMAC[x][0], IPandMAC[x][1], IPandMAC[x][2]
+		else:
+			try:
+				if IPandMAC[x][2] == routerIP:
+					print '[-]',IPandMAC[x][0], IPandMAC[x][1], IPandMAC[x][2],'(router)'
+				else:
+					print '[-]',IPandMAC[x][0], IPandMAC[x][1], IPandMAC[x][2]
+			except:
+				changed = []
+				pass
 	changed = []
 
 def timearg(t):
@@ -139,11 +198,29 @@ def main(pkt):
 
 		def signal_handler(signal, frame):
 			print 'leaning up...'
-			monOff = bash('airmon-ng stop %s' % monmode)
+			if wired == 1:
+				pass
+			else:
+				monOff = bash('airmon-ng stop %s' % monmode)
 			#arp tables seem to get messed up when starting and stopping monitor mode so this heals the arp tables
 			print 'restoring arp table...'
 			arpRestore = bash('arp -s routerIP routerMAC')
 			sys.exit(0)
 		signal.signal(signal.SIGINT, signal_handler)
 
-sniff(iface=monmode, prn=main, store=0)
+root = Tk()
+root.title('Title!')
+app = popup(root)
+Label(root,text='Label').pack(pady=10)
+root.mainloop()
+
+#if wired == 1:
+#	sniff(iface=interface, prn=main, store=0)
+#else:
+#	try:
+#		sniff(iface=monmode, prn=main, store=0)
+#	except socket.error:
+#		print 'Could not reach network'
+#	except Exception:
+#		raise
+
