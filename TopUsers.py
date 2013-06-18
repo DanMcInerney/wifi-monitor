@@ -28,7 +28,6 @@ timer1 = time.time()
 timer2 = 0
 wired = 0
 changed = []
-MACc = ''
 
 promisc = bash('airmon-ng start %s' % interface)
 monmode = re.search('monitor mode enabled on (.+)\)', promisc)
@@ -44,10 +43,11 @@ for s,r in ans:
 print '\n[+] %s clients on the network' % len(IPandMAC)
 
 t = 0
-for idx,x in enumerate(IPandMAC):
+for x in IPandMAC:
 	if routerIP in x[2]:
-		routerMAC = IPandMAC[idx][1]
+		routerMAC = x[1]
 		t = 1
+		break
 if t == 0:
 	monOff = bash('airmon-ng stop %s' % monmode)
 	sys.exit('Router MAC not found')
@@ -61,16 +61,17 @@ def newclients(pkt):
 		#Check for message-type == 3 which is the second request the client makes
 		if pkt[DHCP].options[0][1] == 3:
 			opt = pkt[DHCP].options
-			for idx,x in enumerate(opt):
+			for x in opt:
 #				if "hostname" in repr(x):
 #					hostname = opt[idx][1]
 				if "requested_addr" in repr(x):
-					newIP = opt[idx][1]
+					print x[1]
+					newIP = x[1]
 					newMAC = pkt[Ether].src
 					if newIP != '' and newMAC != '':
 						print '\n[!]',newMAC,'at',newIP,'joined the network'
-						for idy,y in enumerate(IPandMAC):
-							if newIP == IPandMAC[idy][2]:
+						for y in IPandMAC:
+							if newIP == y[2]:
 								return
 					IPandMAC.append([0, newMAC, newIP])
 
@@ -128,12 +129,11 @@ def main(pkt):
 					return
 			srcMAC = pkt.addr1
 			dstMAC = pkt.addr2
-			for idx,x in enumerate(IPandMAC):
-				#Below comment triggers the packet counter for everyone??
-				if (srcMAC or dstMAC) == x[1]:
-#				if srcMAC == x[1] or dstMAC == x[1]:
-					IPandMAC[idx][0] = IPandMAC[idx][0]+1
-					MACa = IPandMAC[idx][1]
+			for x in IPandMAC:
+#				if (srcMAC or dstMAC) == x[1]:
+				if srcMAC == x[1] or dstMAC == x[1]:
+					x[0] = x[0]+1
+					MACa = x[1]
 					if MACa in changed:
 						pass
 					else:
