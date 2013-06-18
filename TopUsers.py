@@ -28,6 +28,7 @@ timer1 = time.time()
 timer2 = 0
 wired = 0
 changed = []
+MACc = ''
 
 promisc = bash('airmon-ng start %s' % interface)
 monmode = re.search('monitor mode enabled on (.+)\)', promisc)
@@ -44,9 +45,9 @@ print '\n[+] %s clients on the network' % len(IPandMAC)
 
 t = 0
 for idx,x in enumerate(IPandMAC):
-	if routerIP in x:
+	if routerIP in x[2]:
 		routerMAC = IPandMAC[idx][1]
-		t=1
+		t = 1
 if t == 0:
 	monOff = bash('airmon-ng stop %s' % monmode)
 	sys.exit('Router MAC not found')
@@ -82,20 +83,21 @@ def printer(n):
 	print ''
 	for x in range(n):
 		try:
-			IP = IPandMAC[x][2]
+			IPMAC = IPandMAC[x]
+			MACb = IPandMAC[x][1]
 		except:
 			changed = []
 			break
-		if IP in changed:
-			if IP == routerIP:
-				print '[+]',IPandMAC[x][0], IPandMAC[x][1], IP,'(router)'
+		if MACb in changed:
+			if MACb == routerMAC:
+				print '[+]',IPMAC[0], MACb, IPMAC[2],'(router)'
 			else:
-				print '[+]',IPandMAC[x][0], IPandMAC[x][1], IP
+				print '[+]',IPMAC[0], MACb, IPMAC[2]
 		else:
-			if IPandMAC[x][2] == routerIP:
-				print '[-]',IPandMAC[x][0], IPandMAC[x][1], IP,'(router)'
+			if MACb == routerMAC:
+				print '[-]',IPMAC[0], MACb, IPMAC[2],'(router)'
 			else:
-				print '[-]',IPandMAC[x][0], IPandMAC[x][1], IP
+				print '[-]',IPMAC[0], MACb, IPMAC[2]
 	changed = []
 
 def timearg(t):
@@ -120,6 +122,7 @@ def main(pkt):
 	if pkt.haslayer(Dot11):
 		if pkt[Dot11].type == 2:
 			pkt = pkt[Dot11]
+			"""addr1 = destination MAC, addr2 == source MAC, addr3 == router MAC (if there's an AP and a router that are different)"""
 			for i in [pkt.addr1, pkt.addr2]:
 				if i in [localMAC, 'ff:ff:ff:ff:ff:ff']:
 					return
@@ -127,10 +130,14 @@ def main(pkt):
 			dstMAC = pkt.addr2
 			for idx,x in enumerate(IPandMAC):
 				#Below comment triggers the packet counter for everyone??
-				#if srcMAC or dstMAC == x[1]:
-				if srcMAC == x[1] or dstMAC == x[1]:
+				if (srcMAC or dstMAC) == x[1]:
+#				if srcMAC == x[1] or dstMAC == x[1]:
 					IPandMAC[idx][0] = IPandMAC[idx][0]+1
-					changed.append(IPandMAC[idx][0])
+					MACa = IPandMAC[idx][1]
+					if MACa in changed:
+						pass
+					else:
+						changed.append(MACa)
 			timer2 = time.time()
 			if args.time:
 				timearg(int(args.time))
@@ -146,4 +153,10 @@ def main(pkt):
 			sys.exit(0)
 		signal.signal(signal.SIGINT, signal_handler)
 
-sniff(iface=monmode, prn=main, store=0)
+try:
+	sniff(iface=monmode, prn=main, store=0)
+except socket.error, (value, message):
+	print message
+except:
+	raise
+
