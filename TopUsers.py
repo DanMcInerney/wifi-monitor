@@ -7,14 +7,25 @@ conf.verb = 0
 import argparse
 import sys
 import signal
-import commands
 import threading
+import datetime
+import commands
 bash=commands.getoutput
 
 parser = argparse.ArgumentParser()
-parser.add_argument("-n", "--number", help="Show n number of top results. Defaults to 5")
-parser.add_argument("-t", "--time", help="Specify the time interval in seconds for updating packet counts. Defaults to 2s")
+parser.add_argument("-j", "--join", help="Show all devices that join the network and when they did it (goes by DHCP packets)", action="store_true")
 args = parser.parse_args()
+
+#Console colors
+W  = '\033[0m'  # white (normal)
+R  = '\033[31m' # red
+G  = '\033[32m' # green
+O  = '\033[33m' # orange
+B  = '\033[34m' # blue
+P  = '\033[35m' # purple
+C  = '\033[36m' # cyan
+GR = '\033[37m' # gray
+T  = '\033[93m' # tan
 
 ipr = bash('ip route')
 routerRE = re.search('default via ((\d{2,3}\.\d{1,3}\.\d{1,4}\.)\d{1,3}) \w+ (\w[a-zA-Z0-9]\w[a-zA-Z0-9][0-9]?)', ipr)
@@ -24,10 +35,11 @@ interface = routerRE.group(3)
 localIP = [x[4] for x in scapy.all.conf.route.routes if x[2] != '0.0.0.0'][0]
 localMAC = get_if_hwaddr(interface)
 IPandMAC = []
-timer1 = time.time()
-timer2 = 0
+start_time = time.time()
+current_time = 0
 wired = 0
 changed = []
+new_clients = []
 
 promisc = bash('airmon-ng start %s' % interface)
 monmode = re.search('monitor mode enabled on (.+)\)', promisc)
@@ -38,14 +50,14 @@ ans,unans = arping(IPprefix+'*', timeout=5)
 for s,r in ans:
 	hw = r[ARP].hwsrc
 	ip = r[ARP].psrc
-	IPandMAC.append([0, hw, ip])
+	IPandMAC.append([hw, ip, 0, 0, 0, 0]) # data, req2send, clear2send, ack or block ack
 
 print '\n[+] %s clients on the network' % len(IPandMAC)
 
 t = 0
 for x in IPandMAC:
-	if routerIP in x[2]:
-		routerMAC = x[1]
+	if routerIP in x[1]:
+		routerMAC = x[0]
 		t = 1
 		break
 if t == 0:
@@ -65,84 +77,67 @@ def newclients(pkt):
 #				if "hostname" in repr(x):
 #					hostname = opt[idx][1]
 				if "requested_addr" in repr(x):
-					print x[1]
 					newIP = x[1]
 					newMAC = pkt[Ether].src
 					if newIP != '' and newMAC != '':
-						print '\n[!]',newMAC,'at',newIP,'joined the network'
+						tstamp = datetime.datetime.fromtimestamp(time.time()).strftime('%Y-%m-%d %H:%M:%S')
+						new_clients.append('[%s] %s at %s joined the network' % (tstamp, newMAC, newIP))
 						for y in IPandMAC:
-							if newIP == y[2]:
+							if newIP == y[1]:
 								return
-					IPandMAC.append([0, newMAC, newIP])
+					IPandMAC.append([newMAC, newIP, 0, 0, 0, 0, 0])
 
 class newDevices(threading.Thread):
 	def run(self):
 		sniff(store=0, filter='port 67 or 68', prn=newclients, iface=interface)
-
-def printer(n):
-	global changed
-	print ''
-	for x in range(n):
-		try:
-			IPMAC = IPandMAC[x]
-			MACb = IPandMAC[x][1]
-		except:
-			changed = []
-			break
-		if MACb in changed:
-			if MACb == routerMAC:
-				print '[+]',IPMAC[0], MACb, IPMAC[2],'(router)'
-			else:
-				print '[+]',IPMAC[0], MACb, IPMAC[2]
-		else:
-			if MACb == routerMAC:
-				print '[-]',IPMAC[0], MACb, IPMAC[2],'(router)'
-			else:
-				print '[-]',IPMAC[0], MACb, IPMAC[2]
-	changed = []
-
-def timearg(t):
-	global timer1
-	if timer2 > timer1+t:
-		IPandMAC.sort(reverse=1)
-		if args.number:
-			printer(int(args.number))
-		else:
-			printer(5)
-		timer1 = time.time()
 
 nd = newDevices()
 nd.daemon = True
 nd.start()
 
 def main(pkt):
-	global timer2
+	global start_time, current_time
 	global changed
 
-	#type 2 is Data, type 0 is Management
+	#type 2 is Data, type 0 is Management which is auth/deauth stuff, type 1 is control which is ACKs, request to sent, clear to send stuff
 	if pkt.haslayer(Dot11):
-		if pkt[Dot11].type == 2:
-			pkt = pkt[Dot11]
-			"""addr1 = destination MAC, addr2 == source MAC, addr3 == router MAC (if there's an AP and a router that are different)"""
-			for i in [pkt.addr1, pkt.addr2]:
-				if i in [localMAC, 'ff:ff:ff:ff:ff:ff']:
-					return
-			srcMAC = pkt.addr1
-			dstMAC = pkt.addr2
+		pkt = pkt[Dot11]
+		if pkt.type in [1,2]:
+			dstMAC = pkt.addr1
+			srcMAC = pkt.addr2 # usually the router
+			srcMAC2 = pkt.addr3 # if it's comp1 > router > comp2 then this is comp1
+			if localMAC in [dstMAC, srcMAC, srcMAC2]:
+				return
+			ptype = pkt.type
+			subtype = pkt.subtype
 			for x in IPandMAC:
-#				if (srcMAC or dstMAC) == x[1]:
-				if srcMAC == x[1] or dstMAC == x[1]:
-					x[0] = x[0]+1
-					MACa = x[1]
-					if MACa in changed:
-						pass
-					else:
-						changed.append(MACa)
-			timer2 = time.time()
-			if args.time:
-				timearg(int(args.time))
-			else:
-				timearg(2)
+				if srcMAC == x[0] or dstMAC == x[0] or srcMAC2 == x[0]:
+					if ptype == 1: # control
+						if subtype == 9 or subtype == 13: # block acknowledgement or acknowledgement
+							x[5] = x[5]+1
+						elif subtype == 11: # request to send
+							x[3] = x[3]+1
+						elif subtype == 12: # clear to send
+							x[4] = x[4]+1
+					elif ptype == 2: # data
+						x[2] = x[2]+1
+			current_time = time.time()
+			if current_time > start_time+1:
+				IPandMAC.sort(key=lambda x: float(x[2]), reverse=True) # sort by data packets
+				os.system('clear')
+				print '                                              '+G+'       Control Frame     '+W
+				print '           MAC             IP            '+R+'Data'+G+'     Req   Clear    Acks '+W
+				for x in IPandMAC:
+					if x[2] != 0 and x[3] != 0 and x[4] != 0 and x[5] != 0:
+						if routerIP in x:
+							print '[+] %s %-15s'%(x[0],x[1])+R+' %7d'%x[2]+G+' %7d %7d %7d' % (x[3], x[4], x[5]), W, '(router)'
+						else:
+							print '[+] %s %-15s'%(x[0],x[1])+R+' %7d'%x[2]+G+' %7d %7d %7d' % (x[3], x[4], x[5]), W
+				print ''
+				if args.join:
+					for x in new_clients:
+						print x
+				start_time = time.time()
 
 		def signal_handler(signal, frame):
 			print 'leaning up...'
