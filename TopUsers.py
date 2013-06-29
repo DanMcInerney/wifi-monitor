@@ -9,8 +9,8 @@ import sys
 import signal
 import threading
 import datetime
-import commands
-bash=commands.getoutput
+from subprocess import Popen, PIPE
+DN = open(os.devnull, 'w')
 
 parser = argparse.ArgumentParser()
 parser.add_argument("-j", "--join", help="Show all devices that join the network and when they did it (goes by DHCP packets)", action="store_true")
@@ -27,7 +27,8 @@ C  = '\033[36m' # cyan
 GR = '\033[37m' # gray
 T  = '\033[93m' # tan
 
-ipr = bash('ip route')
+ipr = Popen(['ip', 'route'], stdout=PIPE, stderr=DN)
+ipr = ipr.communicate()[0]
 routerRE = re.search('default via ((\d{2,3}\.\d{1,3}\.\d{1,4}\.)\d{1,3}) \w+ (\w[a-zA-Z0-9]\w[a-zA-Z0-9][0-9]?)', ipr)
 routerIP = routerRE.group(1)
 IPprefix = routerRE.group(2)
@@ -38,10 +39,10 @@ IPandMAC = []
 start_time = time.time()
 current_time = 0
 wired = 0
-changed = []
 new_clients = []
 
-promisc = bash('airmon-ng start %s' % interface)
+promisc = Popen(['airmon-ng', 'start', '%s' % interface], stdout=PIPE, stderr=DN)
+promisc = promisc.communicate()[0]
 monmode = re.search('monitor mode enabled on (.+)\)', promisc)
 monmode = monmode.group(1)
 print '\n[+] Enabled monitor mode'
@@ -52,8 +53,6 @@ for s,r in ans:
 	ip = r[ARP].psrc
 	IPandMAC.append([hw, ip, 0, 0, 0, 0]) # data, req2send, clear2send, ack or block ack
 
-print '\n[+] %s clients on the network' % len(IPandMAC)
-
 t = 0
 for x in IPandMAC:
 	if routerIP in x[1]:
@@ -61,7 +60,7 @@ for x in IPandMAC:
 		t = 1
 		break
 if t == 0:
-	monOff = bash('airmon-ng stop %s' % monmode)
+	Popen(['airmon-ng', 'stop', '%s' % monmode], stdout=PIPE, stderr=DN)
 	sys.exit('Router MAC not found')
 
 def newclients(pkt):
@@ -86,6 +85,15 @@ def newclients(pkt):
 							if newIP == y[1]:
 								return
 					IPandMAC.append([newMAC, newIP, 0, 0, 0, 0, 0])
+	if pkt.haslayer(ARP):
+		if pkt[ARP].op == 2:
+			for x in IPandMAC:
+				if pkt[ARP].hwsrc == x[0]:
+					return
+				newIP = pkt[ARP].psrc
+				newMAC = pkt[ARP].hwsrc
+			IPandMAC.append([newMAC, newIP, 0, 0, 0, 0, 0])
+			new_clients.append("added %s to list due to arp is-at"%newIP)
 
 class newDevices(threading.Thread):
 	def run(self):
@@ -97,7 +105,6 @@ nd.start()
 
 def main(pkt):
 	global start_time, current_time
-	global changed
 
 	#type 2 is Data, type 0 is Management which is auth/deauth stuff, type 1 is control which is ACKs, request to sent, clear to send stuff
 	if pkt.haslayer(Dot11):
@@ -125,10 +132,10 @@ def main(pkt):
 			if current_time > start_time+1:
 				IPandMAC.sort(key=lambda x: float(x[2]), reverse=True) # sort by data packets
 				os.system('clear')
-				print '                                              '+G+'       Control Frame     '+W
-				print '           MAC             IP            '+R+'Data'+G+'     Req   Clear    Acks '+W
+				print '               '+GR+'%d'%len(IPandMAC)+W+' clients                '+R+'Data        '+G+'Control Frame'+W
+				print '           MAC             IP                    '+G+' Req   Clear    Acks '+W
 				for x in IPandMAC:
-					if x[2] != 0 and x[3] != 0 and x[4] != 0 and x[5] != 0:
+					if x[2] != 0 or x[3] != 0 or x[4] != 0 or x[5] != 0:
 						if routerIP in x:
 							print '[+] %s %-15s'%(x[0],x[1])+R+' %7d'%x[2]+G+' %7d %7d %7d' % (x[3], x[4], x[5]), W, '(router)'
 						else:
@@ -141,10 +148,10 @@ def main(pkt):
 
 		def signal_handler(signal, frame):
 			print 'leaning up...'
-			monOff = bash('airmon-ng stop %s' % monmode)
+			Popen(['airmon-ng', 'stop', '%s' % monmode], stdout=PIPE, stderr=DN)
 			#arp tables seem to get messed up when starting and stopping monitor mode so this heals the arp tables
-			print 'restoring arp table...'
-			arpRestore = bash('arp -s routerIP routerMAC')
+			print 'Restoring arp table...'
+			Popen(['arp', '-s', routerIP, routerMAC], stdout=PIPE, stderr=DN)
 			sys.exit(0)
 		signal.signal(signal.SIGINT, signal_handler)
 
