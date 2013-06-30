@@ -36,17 +36,12 @@ interface = routerRE.group(3)
 localIP = [x[4] for x in scapy.all.conf.route.routes if x[2] != '0.0.0.0'][0]
 localMAC = get_if_hwaddr(interface)
 IPandMAC = []
-start_time = time.time()
-current_time = 0
 wired = 0
 new_clients = []
+start_time = time.time()
+current_time = 0
 
-promisc = Popen(['airmon-ng', 'start', '%s' % interface], stdout=PIPE, stderr=DN)
-promisc = promisc.communicate()[0]
-monmode = re.search('monitor mode enabled on (.+)\)', promisc)
-monmode = monmode.group(1)
-print '\n[+] Enabled monitor mode'
-
+print '[+] Running arp scan'
 ans,unans = arping(IPprefix+'*', timeout=5)
 for s,r in ans:
 	hw = r[ARP].hwsrc
@@ -60,8 +55,38 @@ for x in IPandMAC:
 		t = 1
 		break
 if t == 0:
-	Popen(['airmon-ng', 'stop', '%s' % monmode], stdout=PIPE, stderr=DN)
 	sys.exit('Router MAC not found')
+
+#Do nbtscan for windows netbios names
+print '[+] Running nbtscan'
+nbt = Popen(['nbtscan', IPprefix+'0/24'], stdout=PIPE, stderr=DN)
+nbt = nbt.communicate()[0]
+nbt = nbt.splitlines()
+if len(nbt) < 5:
+	print '[-] nbtscan failed'
+for l in nbt:
+	if l.startswith(IPprefix):
+		ip_name = re.search('(\d{2,3}\.\d{1,3}\.\d{1,3}\.\d{1,3})\s+(\w+)', l)
+		try:
+			nbtip = ip_name.group(1)
+		except:
+			continue
+		try:
+			netbios = ip_name.group(2)
+		except:
+			continue
+		for a in IPandMAC:
+			if nbtip and netbios:
+				if 'Sendto' not in netbios:
+					if nbtip in a:
+						a.append(netbios)
+
+#Start monitor mode
+promisc = Popen(['airmon-ng', 'start', '%s' % interface], stdout=PIPE, stderr=DN)
+promisc = promisc.communicate()[0]
+monmode = re.search('monitor mode enabled on (.+)\)', promisc)
+monmode = monmode.group(1)
+print '\n[+] Enabled monitor mode'
 
 def newclients(pkt):
 	global IPandMAC
@@ -90,7 +115,7 @@ def newclients(pkt):
 				newIP = pkt[ARP].psrc
 				newMAC = pkt[ARP].hwsrc
 			IPandMAC.append([newMAC, newIP, 0, 0, 0, 0, 0])
-			new_clients.append("Added %s to list due to arp is-at"%newIP)
+			new_clients.append("Added %s to list due to arp is-at, may've not been caught by initial arp scan" % newIP)
 
 class newDevices(threading.Thread):
 	def run(self):
@@ -134,7 +159,9 @@ def main(pkt):
 				for x in IPandMAC:
 					if x[2] != 0 or x[3] != 0 or x[4] != 0 or x[5] != 0:
 						if routerIP in x:
-							print '[+] %s %-15s'%(x[0],x[1])+R+' %7d'%x[2]+G+' %7d %7d %7d' % (x[3], x[4], x[5]), W, '(router)'
+							print '[+] %s %-15s'%(x[0],x[1])+R+' %7d'%x[2]+G+' %7d %7d %7d' % (x[3], x[4], x[5])+W+' (router)'
+						elif len(x) == 7:
+							print '[+] %s %-15s'%(x[0],x[1])+R+' %7d'%x[2]+G+' %7d %7d %7d' % (x[3], x[4], x[5])+W+' %s' % x[6]
 						else:
 							print '[+] %s %-15s'%(x[0],x[1])+R+' %7d'%x[2]+G+' %7d %7d %7d' % (x[3], x[4], x[5]), W
 				print ''
