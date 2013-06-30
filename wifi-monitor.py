@@ -67,14 +67,11 @@ def newclients(pkt):
 	global IPandMAC
 	newIP = ''
 	newMAC = ''
-#	hostname = ''
 	if pkt.haslayer(DHCP):
 		#Check for message-type == 3 which is the second request the client makes
 		if pkt[DHCP].options[0][1] == 3:
 			opt = pkt[DHCP].options
 			for x in opt:
-#				if "hostname" in repr(x):
-#					hostname = opt[idx][1]
 				if "requested_addr" in repr(x):
 					newIP = x[1]
 					newMAC = pkt[Ether].src
@@ -93,7 +90,7 @@ def newclients(pkt):
 				newIP = pkt[ARP].psrc
 				newMAC = pkt[ARP].hwsrc
 			IPandMAC.append([newMAC, newIP, 0, 0, 0, 0, 0])
-			new_clients.append("added %s to list due to arp is-at"%newIP)
+			new_clients.append("Added %s to list due to arp is-at"%newIP)
 
 class newDevices(threading.Thread):
 	def run(self):
