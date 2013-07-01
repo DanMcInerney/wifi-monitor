@@ -59,9 +59,12 @@ if t == 0:
 
 #Do nbtscan for windows netbios names
 print '[+] Running nbtscan'
-nbt = Popen(['nbtscan', IPprefix+'0/24'], stdout=PIPE, stderr=DN)
-nbt = nbt.communicate()[0]
-nbt = nbt.splitlines()
+try:
+	nbt = Popen(['nbtscan', IPprefix+'0/24'], stdout=PIPE, stderr=DN)
+	nbt = nbt.communicate()[0]
+	nbt = nbt.splitlines()
+except:
+	print '[-] nbtscan error, are you sure it is installed?'
 if len(nbt) < 5:
 	print '[-] nbtscan failed'
 for l in nbt:
@@ -82,11 +85,14 @@ for l in nbt:
 						a.append(netbios)
 
 #Start monitor mode
-promisc = Popen(['airmon-ng', 'start', '%s' % interface], stdout=PIPE, stderr=DN)
-promisc = promisc.communicate()[0]
-monmode = re.search('monitor mode enabled on (.+)\)', promisc)
-monmode = monmode.group(1)
-print '\n[+] Enabled monitor mode'
+print '\n[+] Enabling monitor mode'
+try:
+	promisc = Popen(['airmon-ng', 'start', '%s' % interface], stdout=PIPE, stderr=DN)
+	promisc = promisc.communicate()[0]
+	monmode = re.search('monitor mode enabled on (.+)\)', promisc)
+	monmode = monmode.group(1)
+except OSError, e:
+	sys.exit('[-] Enabling monitor mode failed, do you have aircrack-ng installed?')
 
 def newclients(pkt):
 	global IPandMAC
@@ -159,11 +165,11 @@ def main(pkt):
 				for x in IPandMAC:
 					if x[2] != 0 or x[3] != 0 or x[4] != 0 or x[5] != 0:
 						if routerIP in x:
-							print '[+] %s %-15s'%(x[0],x[1])+R+' %7d'%x[2]+G+' %7d %7d %7d' % (x[3], x[4], x[5])+W+' (router)'
+							print '[+] %s %-15s'%(x[0],x[1])+R+' %7d'%x[2]+G+' %7d %7d %7d' % (x[3], x[4], x[5])+GR+' (router)'+W
 						elif len(x) == 7:
 							print '[+] %s %-15s'%(x[0],x[1])+R+' %7d'%x[2]+G+' %7d %7d %7d' % (x[3], x[4], x[5])+W+' %s' % x[6]
 						else:
-							print '[+] %s %-15s'%(x[0],x[1])+R+' %7d'%x[2]+G+' %7d %7d %7d' % (x[3], x[4], x[5]), W
+							print '[+] %s %-15s'%(x[0],x[1])+R+' %7d'%x[2]+G+' %7d %7d %7d' % (x[3], x[4], x[5])+ W
 				print ''
 				if args.join:
 					for x in new_clients:
