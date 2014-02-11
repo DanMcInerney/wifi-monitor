@@ -15,6 +15,8 @@ Options:
 
 -j: prints new devices that request an IP via DHCP packet at the bottom
 
+
+
 License
 -------
 
@@ -37,3 +39,8 @@ LOSS OF USE, DATA, OR PROFITS; OR BUSINESS INTERRUPTION) HOWEVER CAUSED AND
 ON ANY THEORY OF LIABILITY, WHETHER IN CONTRACT, STRICT LIABILITY, OR TORT
 (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE OF THIS
 SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
+
+
+***
+* (danmcinerney.org)[danmcinerney.org]
+* [![Flattr this](http://api.flattr.com/button/flattr-badge-large.png)](https://flattr.com/submit/auto?user_id=DanMcInerney&url=https://github.com/DanMcInerney/wifi-monitor&title=wifi-monitor&language=&tags=github&category=software) 
