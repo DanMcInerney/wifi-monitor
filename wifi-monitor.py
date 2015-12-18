@@ -29,7 +29,7 @@ T  = '\033[93m' # tan
 
 ipr = Popen(['ip', 'route'], stdout=PIPE, stderr=DN)
 ipr = ipr.communicate()[0]
-routerRE = re.search('default via ((\d{2,3}\.\d{1,3}\.\d{1,4}\.)\d{1,3}) \w+ (\w[a-zA-Z0-9]\w[a-zA-Z0-9][0-9]?)', ipr)
+routerRE = re.search('default via ((\d{2,3}\.\d{1,3}\.\d{1,4}\.)\d{1,3}) \w+ (\w+)', ipr)
 routerIP = routerRE.group(1)
 IPprefix = routerRE.group(2)
 interface = routerRE.group(3)
