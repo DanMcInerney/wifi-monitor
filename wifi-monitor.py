@@ -1,11 +1,15 @@
 #!/usr/bin/env python
 import argparse
 import datetime
+import os
 import logging
 import signal
 import sys
 import threading
 from subprocess import Popen, PIPE
+
+if not os.geteuid() == 0:
+    sys.exit('Script must be run as root.')
 
 logging.getLogger("scapy.runtime").setLevel(logging.ERROR)
 from scapy.all import *
