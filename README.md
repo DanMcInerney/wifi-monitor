@@ -16,8 +16,17 @@ Options:
 -j: prints new devices that request an IP via DHCP packet at the bottom
 
 
-## Requirements
+## System Dependencies
+* nbtscan
+* airmon-ng
 
+On Debian-based distros:
+```
+sudo apt-get install nbtscan aircrack-ng
+```
+
+
+## Python Requirements
 * scapy
 
 ```
