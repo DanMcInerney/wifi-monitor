@@ -16,6 +16,23 @@ Options:
 -j: prints new devices that request an IP via DHCP packet at the bottom
 
 
+## System Dependencies
+* nbtscan
+* airmon-ng
+
+On Debian-based distros:
+```
+sudo apt-get install nbtscan aircrack-ng
+```
+
+
+## Python Requirements
+* scapy
+
+```
+pip install -r requirements.txt
+```
+
 
 License
 -------
@@ -44,4 +61,4 @@ SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 
 ***
 * [danmcinerney.org](http://danmcinerney.org)
-* [![Flattr this](http://api.flattr.com/button/flattr-badge-large.png)](https://flattr.com/submit/auto?user_id=DanMcInerney&url=https://github.com/DanMcInerney/wifi-monitor&title=wifi-monitor&language=&tags=github&category=software) 
+* [![Flattr this](http://api.flattr.com/button/flattr-badge-large.png)](https://flattr.com/submit/auto?user_id=DanMcInerney&url=https://github.com/DanMcInerney/wifi-monitor&title=wifi-monitor&language=&tags=github&category=software)
